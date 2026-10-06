@@ -1,15 +1,17 @@
-# Railway-native WhiteDNS edition.
-# No SSH, Docker-in-Docker, VPS provisioning, or PostgreSQL is required.
+FROM alpine:3.22
 
-FROM ghcr.io/xtls/xray-core:26.9.9 AS xray
+RUN apk add --no-cache ca-certificates curl unzip bash \
+    && mkdir -p /opt/xray /app \
+    && curl -fL --retry 5 --retry-delay 2 \
+       -o /tmp/xray.zip \
+       https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip \
+    && unzip -q /tmp/xray.zip -d /opt/xray \
+    && chmod +x /opt/xray/xray \
+    && rm -f /tmp/xray.zip
 
-FROM golang:1.24-bookworm AS builder
-WORKDIR /src
-COPY cmd/railway-xray/main.go ./main.go
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/railway-xray ./main.go
+COPY app/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=xray /usr/local/bin/xray /usr/local/bin/xray
-COPY --from=builder /out/railway-xray /railway-xray
-EXPOSE 8080
-ENTRYPOINT ["/railway-xray"]
+ENV WS_PATH=/whitedns
+
+ENTRYPOINT ["/app/entrypoint.sh"]

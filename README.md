@@ -1,50 +1,84 @@
-# WhiteDNS Railway Edition
+# Railway VLESS + WebSocket
 
-This is a Railway-native adaptation of the WhiteDNS Wizard architecture.
+A small Railway-ready VLESS over WebSocket service using Xray-core.
 
-The original WhiteDNS Wizard is a local Go CLI that provisions a Docker-based 3x-ui/Xray stack on a VPS over SSH. This edition removes the VPS/SSH/Docker-in-Docker/PostgreSQL provisioning path and runs a minimal Xray VLESS-WebSocket service directly as one Railway service.
+## What this is
 
-## What this version does
+This is a Railway-native deployment. It does not require:
+- SSH access to a VPS
+- 3x-ui
+- PostgreSQL
+- Docker-in-Docker
+- a separate server
 
-- Uses Railway's injected `PORT`.
-- Uses a single VLESS + WebSocket inbound.
-- Lets Railway terminate HTTPS/TLS at its public edge.
-- Automatically uses `RAILWAY_PUBLIC_DOMAIN` once a Railway service domain exists.
-- Accepts a stable `UUID` through a Railway secret.
-- Prints a VLESS import string to the deployment logs.
-- Requires no VPS and no SSH.
+Railway runs the container and provides the public HTTPS endpoint.
 
-## What it intentionally does not do
+## Important
 
-It does not reproduce the original Wizard's full 3x-ui stack, PostgreSQL, Tor sidecar, Hysteria2 UDP, Reality, Shadowsocks UDP/TCP, certificate provisioning, or remote SSH management. Railway's public networking model is not equivalent to a VPS with arbitrary inbound ports.
+This is **not a full replacement for the original WhiteDNS Wizard stack**. It is a minimal VLESS + WebSocket service adapted for Railway's HTTP/HTTPS public networking model.
 
-## Deploy
+## Deploy from GitHub
 
-1. Create a new Railway project and deploy this repository.
-2. Generate a Railway service domain in **Settings -> Networking -> Public Networking**.
-3. Set a Railway variable named `UUID` to a stable UUID.
-4. Optional: set `WS_PATH` (default `/whitedns`).
-5. Redeploy.
-6. Open deployment logs and copy the printed `vless://...` import URL.
-7. Import that URL into a client that supports VLESS + WebSocket + TLS.
+1. Create a new GitHub repository.
+2. Put these files at the repository root.
+3. Deploy the repository to Railway.
+4. Generate a public domain from the Railway service settings.
+5. In Railway Variables, add a fixed UUID.
+6. Redeploy.
+7. Open the deployment logs and copy the printed `vless://` URI.
 
-### Notes about the generated link
+## Variables
 
-The link uses:
+Required:
 
-- Host: Railway public domain (or `DOMAIN` if set)
-- Port: `443`
-- TLS: enabled
-- Transport: WebSocket
-- Path: `WS_PATH`
-- SNI/Host: the same public domain
+`UUID`
+- Use one fixed UUID.
+- Do not change it after clients are configured.
 
-Railway terminates the public HTTPS connection and forwards the WebSocket traffic to the service port. Therefore Xray is deliberately configured with `security: none` behind the Railway edge.
+Optional:
 
-## Resource and pricing note
+`WS_PATH`
+- Default: `/whitedns`
 
-Railway's current Free plan provides a small monthly usage credit rather than unlimited compute. New accounts also receive a one-time trial credit. Actual cost depends on usage; check your Railway Usage page.
+`PUBLIC_DOMAIN`
+- Optional override.
+- Normally Railway's `RAILWAY_PUBLIC_DOMAIN` is used automatically.
 
-## Xray version
+`PORT`
+- Railway supplies this automatically.
 
-The Dockerfile pins the official Xray container image to `26.9.9`. Update the tag deliberately when you want to move to a newer Xray release.
+## Local Docker test
+
+Build:
+
+```bash
+docker build -t railway-vless-ws .
+```
+
+Run:
+
+```bash
+docker run --rm \
+  -e PORT=8080 \
+  -e UUID=00000000-0000-4000-8000-000000000000 \
+  -e WS_PATH=/whitedns \
+  -p 8080:8080 \
+  railway-vless-ws
+```
+
+## Expected startup log
+
+```text
+Railway VLESS + WebSocket
+Listen: 0.0.0.0:8080
+WebSocket path: /whitedns
+```
+
+After a Railway public domain exists, the log also prints a `vless://` client URI.
+
+## Notes
+
+- Railway's public endpoint provides HTTPS; Xray itself listens for plain WebSocket traffic inside the container.
+- The generated URI uses port 443 on the Railway public domain.
+- Keep the UUID private.
+- This project intentionally avoids hardcoding secrets in source control.
